@@ -1,0 +1,56 @@
+version: '3.7'
+
+services:
+
+  log-generator:
+    build: .
+    container_name: java-log-generator
+    image: java-log-generator:latest
+    environment:
+      - DD_AGENT_HOST=datadog
+      - DD_SERVICE=java-log-generator
+      - DD_ENV=test # replace with your own
+      - DD_TAGS=team:devops # replace/append with your own
+      - DD_VERSION=1.0
+      - DD_PROFILING_ENABLED=true
+      - DD_TRACE_SAMPLE_RATE=1
+      - DD_LOGS_INJECTION=true
+      - DD_TRACE_METHODS=com.example.loggenerator.SearchRequest[*];com.example.loggenerator.SellRequest[*]
+    volumes:
+      - ./dd-java-agent.jar:/app/dd-java-agent.jar # add this line
+      - ./start-app.sh:/app/start-app.sh # add this line
+    command: /bin/sh /app/start-app.sh
+    ## Autodiscovery labels
+    labels:
+        com.datadoghq.ad.logs: '[{"source":"java","service":"java-log-generator"}]'
+  datadog:
+    container_name: datadog-agent
+    image: datadog/agent:latest
+    env_file:
+      - dd.env # update DD_SITE and DD_API_KEY in the file
+    environment:
+      ## GLOBALS
+      - DD_ENV=test # replace with your own
+      - DD_TAGS=team:devops # replace/append with your own
+      - DD_AC_EXCLUDE=name:datadog-agent # exclude this container from data collection
+      ## TAGS
+      - DD_DOCKER_LABELS_AS_TAGS=true
+      - DD_DOCKER_ENV_AS_TAGS=true
+      ## APM https://docs.datadoghq.com/agent/docker/apm/
+      - DD_APM_ENABLED=true
+      - DD_APM_NON_LOCAL_TRAFFIC=true
+      ## LOGS https://docs.datadoghq.com/agent/docker/log/
+      - DD_LOGS_ENABLED=true
+      - DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true
+      ## LIVE PROCESSES https://docs.datadoghq.com/graphing/infrastructure/process/?tab=docker
+      - DD_PROCESS_AGENT_ENABLED=true
+      ## DOGSTATSD
+      - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
+    ports:
+      - 8126:8126/tcp # for APM
+      - 8125:8125/udp # for Dogstatsd
+    volumes:
+     - /var/run/docker.sock:/var/run/docker.sock:ro
+     - /proc/:/host/proc/:ro
+     - /sys/fs/cgroup:/host/sys/fs/cgroup:ro
+     - /etc/passwd:/etc/passwd:ro # LIVE PROCESSES
